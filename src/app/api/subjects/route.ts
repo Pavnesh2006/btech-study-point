@@ -19,10 +19,11 @@ export async function GET(request: NextRequest) {
     const branch = searchParams.get('branch') ?? undefined
     const semester = searchParams.get('semester')
     const sem = semester ? parseInt(semester, 10) : undefined
-    const subjects = await db.subject.findMany({ where: { ...(branch ? { branch } : {}), ...(sem && !Number.isNaN(sem) ? { semester: sem } : {}) }, orderBy: [{ semester: 'asc' }, { name: 'asc' }] })
+    const subjects = await db.subject.findMany({ where: { ...(branch ? { branch } : {}), ...(sem && !Number.isNaN(sem) ? { semester: sem } : {}) }, orderBy: { semester: 'asc' }, include: { _count: { select: { chapters: true } } } })
     return NextResponse.json({ subjects })
   } catch (e) {
-    return NextResponse.json({ error: `Server error: ${e instanceof Error ? e.message : 'unknown'}` }, { status: 500 })
+    const msg = e instanceof Error ? e.message : 'unknown'
+    return NextResponse.json({ error: `Database error: ${msg}. If tables don't exist, run: npx prisma db push` }, { status: 500 })
   }
 }
 
@@ -42,7 +43,15 @@ export async function POST(request: NextRequest) {
     try {
       const subject = await db.subject.create({ data: { name, code, branch, semester } })
       return NextResponse.json({ subject }, { status: 201 })
-    } catch { return NextResponse.json({ error: 'Subject already exists for this branch & semester' }, { status: 409 }) }
+    } catch (e: any) {
+      // Distinguish between "already exists" (P2002) and other DB errors
+      if (e?.code === 'P2002') {
+        return NextResponse.json({ error: 'Subject already exists for this branch & semester' }, { status: 409 })
+      }
+      // For any other error (missing table, connection error, etc.), give a helpful message
+      const msg = e instanceof Error ? e.message : 'unknown'
+      return NextResponse.json({ error: `Database error: ${msg}. If tables don't exist, run: npx prisma db push` }, { status: 500 })
+    }
   } catch (e) {
     return NextResponse.json({ error: `Server error: ${e instanceof Error ? e.message : 'unknown'}` }, { status: 500 })
   }

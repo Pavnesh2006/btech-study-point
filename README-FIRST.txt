@@ -1,75 +1,68 @@
 ╔══════════════════════════════════════════════════════════════════════╗
-║     BTECH STUDY POINT — DEPLOYMENT GUIDE (YouTube + Ads edition)     ║
+║  BTECH STUDY POINT — NETLIFY DEPLOYMENT GUIDE (read carefully!)      ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
-This version uses YOUTUBE for video storage (no storage problems!)
-and stores ads as images in the database. Works perfectly on Netlify.
+This app uses YouTube for videos and PostgreSQL for data.
+You MUST set up a database before it will work.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  HOW IT WORKS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  VIDEOS: Upload your lectures to YouTube as UNLISTED videos.
-          Then in the admin panel, paste the YouTube URL.
-          Videos play embedded on your website — users can't
-          download or copy the link.
-
-  ADS:    Upload poster images (under 2MB) in the admin panel.
-          Users see them as a banner and can dismiss with X.
-
-  STORAGE: No file storage needed! Videos are on YouTube,
-           ads are in the database. Works on Netlify free tier.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  STEP 1: Get a FREE PostgreSQL database
+  STEP 1: Create a FREE PostgreSQL database (2 minutes)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   1. Go to https://neon.tech → sign up (free, no credit card)
-  2. Create a new project
-  3. Copy the connection string:
-     postgresql://neondb:AbCdEf123@ep-xxx.neon.tech/neondb?sslmode=require
+  2. Click "New Project" → give it any name
+  3. Copy the "Connection string" — it looks like:
+     postgresql://neondb:AbCdEf123456@ep-xxx.us-east-2.aws.neon.tech/neondb?sslmode=require
+
+  SAVE THIS STRING — you need it for Netlify.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  STEP 2: Push to GitHub
+  STEP 2: Push the code to GitHub
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  1. Extract this zip
-  2. Create a GitHub repo
-  3. Upload all files
+  1. Extract this zip on your computer
+  2. Go to https://github.com → New repository (e.g. "btech-study-point")
+  3. Upload ALL files from the zip to the repository
+     (GitHub web: just drag-and-drop the extracted files)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   STEP 3: Deploy on Netlify
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  1. https://app.netlify.com → Add new site → Import from Git
-  2. Select your repo
-  3. Click "Advanced" → Add environment variable:
+  1. Go to https://app.netlify.com → "Add new site" → "Import from Git"
+  2. Select your GitHub repository
+  3. DO NOT CLICK DEPLOY YET — first set environment variables:
+     Click "Advanced" → "Add environment variables"
+     Add this ONE variable:
+
        Key:   DATABASE_URL
-       Value: postgresql://neondb:...@ep-xxx.neon.tech/neondb?sslmode=require
-  4. Deploy
+       Value: postgresql://neondb:AbCdEf...@ep-xxx.neon.tech/neondb?sslmode=require
+              (paste YOUR Neon connection string from Step 1)
+
+  4. Now click "Deploy site"
+  5. Wait 2-3 minutes for the build to complete
+
+  The build will AUTOMATICALLY:
+  - Switch to PostgreSQL schema
+  - Generate Prisma client
+  - Create all database tables (prisma db push)
+  - Build the Next.js app
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  STEP 4: Create database tables
+  STEP 4: Verify it works
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Run locally (extract zip, then):
-    npm install
-    DATABASE_URL="your-neon-connection-string" npx prisma db push
-
-  OR run this SQL in Neon's SQL Editor:
-
-  CREATE TABLE "Subject" (id TEXT PRIMARY KEY, name TEXT NOT NULL, code TEXT, branch TEXT NOT NULL, semester INTEGER NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT subject_bsn_key UNIQUE (branch, semester, name));
-  CREATE TABLE "Chapter" (id TEXT PRIMARY KEY, name TEXT NOT NULL, "subjectId" TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT chapter_sn_key UNIQUE ("subjectId", name), CONSTRAINT chapter_s_fk FOREIGN KEY ("subjectId") REFERENCES "Subject"(id) ON DELETE CASCADE);
-  CREATE TABLE "Resource" (id TEXT PRIMARY KEY, title TEXT NOT NULL, type TEXT NOT NULL, "youtubeId" TEXT, "noteUrl" TEXT, "noteFileName" TEXT, "chapterId" TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT resource_c_fk FOREIGN KEY ("chapterId") REFERENCES "Chapter"(id) ON DELETE CASCADE);
-  CREATE INDEX resource_ct_idx ON "Resource"("chapterId", type);
-  CREATE TABLE "User" (id TEXT PRIMARY KEY, email TEXT NOT NULL, "passwordHash" TEXT NOT NULL, name TEXT NOT NULL, branch TEXT NOT NULL, semester INTEGER NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL, CONSTRAINT user_email_key UNIQUE (email));
-  CREATE INDEX user_bs_idx ON "User"(branch, semester);
-  CREATE TABLE "Ad" (id TEXT PRIMARY KEY, title TEXT NOT NULL, "imageUrl" TEXT NOT NULL, "linkUrl" TEXT, active BOOLEAN NOT NULL DEFAULT true, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+  1. Visit your Netlify URL (e.g. https://your-site.netlify.app)
+  2. The registration form should appear
+  3. Register a test account — it should work without errors
+  4. If you get "Network error", check:
+     - Did you set DATABASE_URL in Netlify environment variables?
+     - Is the Neon database active? (free tier pauses after inactivity)
+     - Check Netlify Functions logs for details
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -77,17 +70,60 @@ and stores ads as images in the database. Works perfectly on Netlify.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   1. Upload your lecture videos to YouTube as UNLISTED
-  2. Visit https://YOURSITE.netlify.app/#admin
-  3. Login: neveralone20040@gmail.com / Pathak@2011
-  4. Select branch + semester → add subject → add chapter
-  5. Click "Add Content" → "YouTube Video" tab
-  6. Paste the YouTube URL → click Add
-  7. The video now plays embedded on your website!
+  2. Visit: https://YOUR-SITE.netlify.app/#admin
+  3. Login:
+       Email:    neveralone20040@gmail.com
+       Password: Pathak@2011
+  4. Check "Keep me logged in" for auto-login
+  5. Select Branch + Semester → Add Subject → Add Chapter
+  6. Click "Add Content" → "YouTube Video" tab
+  7. Paste the YouTube URL → click "Add Video"
+  8. The video now plays embedded on your website!
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ADMIN ACCESS: https://YOURSITE.netlify.app/#admin
-  Email: neveralone20040@gmail.com  Password: Pathak@2011
+  STEP 6 (Optional): Add Ads/Posters
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  In the admin panel, scroll down to "Ads & Posters":
+  1. Enter a title
+  2. Upload an image (under 2MB) — poster, banner, etc.
+  3. Optionally add a click link
+  4. Click "Add Ad"
+  5. Users will see the ad as a banner on their dashboard
+  6. Users can dismiss ads with the X button
+  7. Toggle ads active/inactive with the power button
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Problem: "Network error" on register/login
+  Cause: DATABASE_URL not set, or database not reachable
+  Fix: Set DATABASE_URL in Netlify → Site settings → Environment variables
+       Make sure it's a PostgreSQL connection string (starts with postgresql://)
+
+  Problem: "Subject already exists" but not showing in list
+  Cause: Database tables don't exist
+  Fix: The build now auto-creates tables. If still failing, run locally:
+       npm install
+       DATABASE_URL="your-neon-url" npx prisma db push
+       This creates all tables in your Neon database.
+
+  Problem: Build fails on Netlify
+  Cause: Missing dependencies or Prisma issues
+  Fix: Check Netlify build logs. The @netlify/plugin-nextjs is included.
+
+  Problem: Admin panel not accessible
+  Fix: Make sure to visit https://YOUR-SITE.netlify.app/#admin (with the #)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ADMIN ACCESS
+  URL:    https://YOUR-SITE.netlify.app/#admin
+  Email:  neveralone20040@gmail.com
+  Pass:   Pathak@2011
 
   Made with love by Pavnesh
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

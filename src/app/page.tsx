@@ -93,7 +93,7 @@ export default function Home() {
   } else if (view === 'admin-login') {
     content = <motion.div key="admin-login" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}><AdminLogin onSuccess={() => setAdminAuthed(true)} onBack={() => { clearAdminHash(); setMode('user') }} /></motion.div>
   } else if (view === 'admin-panel') {
-    content = <motion.div key="admin-panel" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}><AdminPanel onLogout={() => { fetch('/api/admin/login', { method: 'DELETE' }).catch(() => {}); try { localStorage.removeItem(ADMIN_REMEMBER_KEY) } catch {} setAdminAuthed(false); setPrevWantAdmin(false) }} onViewSite={() => { clearAdminHash(); setMode('user') }} /></motion.div>
+    content = <motion.div key="admin-panel" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}><AdminPanel onLogout={() => { fetch('/api/admin/login', { method: 'DELETE' }).catch(() => {}); try { localStorage.removeItem(ADMIN_REMEMBER_KEY); localStorage.removeItem('bsp_admin_token') } catch {} setAdminAuthed(false); setPrevWantAdmin(false) }} onViewSite={() => { clearAdminHash(); setMode('user') }} /></motion.div>
   } else if (view === 'dashboard' && student) {
     content = <motion.div key="dashboard" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}><StudyDashboard student={student} onExit={() => { fetch('/api/auth/logout', { method: 'POST' }).catch(() => {}); clearStudent(); setMode('user') }} /></motion.div>
   } else {

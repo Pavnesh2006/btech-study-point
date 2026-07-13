@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 
 const REMEMBER_KEY = 'bsp_admin_remember'
+const TOKEN_KEY = 'bsp_admin_token'
 
 export function AdminLogin({ onSuccess, onBack }: { onSuccess: () => void; onBack: () => void }) {
   const [email, setEmail] = useState('')
@@ -27,7 +28,17 @@ export function AdminLogin({ onSuccess, onBack }: { onSuccess: () => void; onBac
       if (p?.email && p?.password) {
         setEmail(p.email); setPassword(p.password); setRemember(true); setAutoLogin(true)
         fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: p.email, password: p.password }) })
-          .then((r) => { if (r.ok) onSuccess(); else { setAutoLogin(false); localStorage.removeItem(REMEMBER_KEY) } })
+          .then((r) => r.ok ? r.json() : null)
+          .then((data) => {
+            if (data?.token) {
+              localStorage.setItem(TOKEN_KEY, data.token)
+              onSuccess()
+            } else {
+              setAutoLogin(false)
+              localStorage.removeItem(REMEMBER_KEY)
+              localStorage.removeItem(TOKEN_KEY)
+            }
+          })
           .catch(() => setAutoLogin(false))
       }
     } catch {}
@@ -39,7 +50,10 @@ export function AdminLogin({ onSuccess, onBack }: { onSuccess: () => void; onBac
       const res = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Login failed'); return }
-      if (remember) localStorage.setItem(REMEMBER_KEY, JSON.stringify({ email, password })); else localStorage.removeItem(REMEMBER_KEY)
+      // Store token in localStorage for header-based auth (Netlify compatibility)
+      if (data.token) localStorage.setItem(TOKEN_KEY, data.token)
+      if (remember) localStorage.setItem(REMEMBER_KEY, JSON.stringify({ email, password }))
+      else { localStorage.removeItem(REMEMBER_KEY) }
       onSuccess()
     } catch { setError('Network error. Please try again.') } finally { setLoading(false) }
   }

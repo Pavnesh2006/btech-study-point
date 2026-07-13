@@ -13,8 +13,15 @@ export async function POST(request: NextRequest) {
     if (!email || !password) return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
     if (!validateCredentials(email, password)) return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     const token = createSessionToken(ADMIN_EMAIL)
-    const response = NextResponse.json({ success: true, email: ADMIN_EMAIL })
-    response.cookies.set(COOKIE_NAME, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: Math.floor(SESSION_TTL / 1000) })
+    const response = NextResponse.json({ success: true, email: ADMIN_EMAIL, token })
+    // Set cookie (works for same-origin)
+    response.cookies.set(COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: Math.floor(SESSION_TTL / 1000),
+    })
     return response
   } catch (e) {
     return NextResponse.json({ error: `Server error: ${e instanceof Error ? e.message : 'Login failed'}` }, { status: 500 })

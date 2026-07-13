@@ -51,7 +51,12 @@ export function AdminPanel({ onLogout, onViewSite }: { onLogout: () => void; onV
 
   const loadStats = useCallback(async () => {
     try {
-      const [subRes, resRes] = await Promise.all([fetch('/api/subjects?all=1', { cache: 'no-store' }), fetch('/api/resources?all=1', { cache: 'no-store' })])
+      const token = typeof window !== 'undefined' ? localStorage.getItem('bsp_admin_token') : null
+      const hdrs = token ? { 'X-Admin-Token': token } : {}
+      const [subRes, resRes] = await Promise.all([
+        fetch('/api/subjects?all=1', { cache: 'no-store', headers: hdrs }),
+        fetch('/api/resources?all=1', { cache: 'no-store', headers: hdrs }),
+      ])
       const subData = await subRes.json(); const resData = await resRes.json()
       const allSubjects: Subject[] = subData.subjects ?? []; const allResources: Resource[] = resData.resources ?? []
       setStats({ subjects: allSubjects.length, chapters: allSubjects.reduce((s, x) => s + (x._count?.chapters ?? 0), 0), videos: allResources.filter((r) => r.type === 'video').length, notes: allResources.filter((r) => r.type === 'note').length })
@@ -73,6 +78,12 @@ export function AdminPanel({ onLogout, onViewSite }: { onLogout: () => void; onV
 
   const notify = (msg: string, type: 'success' | 'error' = 'success') => toast({ title: type === 'success' ? 'Success' : 'Error', description: msg, variant: type === 'error' ? 'destructive' : undefined })
 
+  // Helper: get admin auth headers (token from localStorage for Netlify compatibility)
+  function adminHeaders(extra: Record<string, string> = {}): Record<string, string> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('bsp_admin_token') : null
+    return { 'Content-Type': 'application/json', ...(token ? { 'X-Admin-Token': token } : {}), ...extra }
+  }
+
   // Add subject — controlled inputs, optimistic update, loading state
   async function handleAddSubject(e: React.FormEvent) {
     e.preventDefault()
@@ -81,7 +92,7 @@ export function AdminPanel({ onLogout, onViewSite }: { onLogout: () => void; onV
     if (!name || subjBusy) return
     setSubjBusy(true)
     try {
-      const res = await fetch('/api/subjects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, code, branch, semester: parseInt(semester) }) })
+      const res = await fetch('/api/subjects', { method: 'POST', headers: adminHeaders(), body: JSON.stringify({ name, code, branch, semester: parseInt(semester) }) })
       const data = await res.json()
       if (!res.ok) { notify(data.error || 'Failed to add subject', 'error'); return }
       // Optimistic update: add the new subject to the list immediately
@@ -100,7 +111,7 @@ export function AdminPanel({ onLogout, onViewSite }: { onLogout: () => void; onV
   async function handleDeleteSubject(id: string, name: string) {
     if (!confirm(`Delete "${name}"?`)) return
     try {
-      await fetch(`/api/subjects/${id}`, { method: 'DELETE' })
+      await fetch(`/api/subjects/${id}`, { method: 'DELETE', headers: adminHeaders() })
       setSubjects((prev) => prev.filter((s) => s.id !== id))
       if (selectedSubject?.id === id) setSelectedSubject(null)
       notify('Deleted')
@@ -116,7 +127,7 @@ export function AdminPanel({ onLogout, onViewSite }: { onLogout: () => void; onV
     if (!name) return
     setChapBusy(true)
     try {
-      const res = await fetch('/api/chapters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subjectId: selectedSubject.id, name }) })
+      const res = await fetch('/api/chapters', { method: 'POST', headers: adminHeaders(), body: JSON.stringify({ subjectId: selectedSubject.id, name }) })
       const data = await res.json()
       if (!res.ok) { notify(data.error || 'Failed to add chapter', 'error'); return }
       setChapters((prev) => [...prev, data.chapter])
@@ -134,7 +145,7 @@ export function AdminPanel({ onLogout, onViewSite }: { onLogout: () => void; onV
   async function handleDeleteChapter(id: string, name: string) {
     if (!confirm(`Delete "${name}"?`)) return
     try {
-      await fetch(`/api/chapters/${id}`, { method: 'DELETE' })
+      await fetch(`/api/chapters/${id}`, { method: 'DELETE', headers: adminHeaders() })
       setChapters((prev) => prev.filter((c) => c.id !== id))
       if (selectedChapter?.id === id) setSelectedChapter(null)
       notify('Deleted')
@@ -144,7 +155,7 @@ export function AdminPanel({ onLogout, onViewSite }: { onLogout: () => void; onV
 
   async function addResource(type: 'video' | 'note', title: string, youtubeUrl: string, noteUrl: string, noteFileName: string) {
     if (!selectedChapter) return
-    const res = await fetch('/api/resources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chapterId: selectedChapter.id, type, title, youtubeUrl, noteUrl, noteFileName }) })
+    const res = await fetch('/api/resources', { method: 'POST', headers: adminHeaders(), body: JSON.stringify({ chapterId: selectedChapter.id, type, title, youtubeUrl, noteUrl, noteFileName }) })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Failed to add')
     setResources((prev) => [data.resource, ...prev])
@@ -152,7 +163,7 @@ export function AdminPanel({ onLogout, onViewSite }: { onLogout: () => void; onV
   }
 
   async function deleteResource(id: string) {
-    await fetch(`/api/resources/${id}`, { method: 'DELETE' })
+    await fetch(`/api/resources/${id}`, { method: 'DELETE', headers: adminHeaders() })
     setResources((prev) => prev.filter((r) => r.id !== id))
     loadStats()
   }
@@ -299,7 +310,13 @@ function AdsSection() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const loadAds = useCallback(async () => {
-    try { const res = await fetch('/api/ads?all=1', { cache: 'no-store' }); const data = await res.json(); setAds(data.ads ?? []) } catch {} finally { setLoading(false) }
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('bsp_admin_token') : null
+      const hdrs = token ? { 'X-Admin-Token': token } : {}
+      const res = await fetch('/api/ads?all=1', { cache: 'no-store', headers: hdrs })
+      const data = await res.json()
+      setAds(data.ads ?? [])
+    } catch {} finally { setLoading(false) }
   }, [])
 
   useEffect(() => { loadAds() }, [loadAds])
@@ -318,7 +335,8 @@ function AdsSection() {
     if (!title.trim() || !imageUrl) return
     setBusy(true)
     try {
-      const res = await fetch('/api/ads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim(), imageUrl, linkUrl: linkUrl.trim() || undefined }) })
+      const token = typeof window !== 'undefined' ? localStorage.getItem('bsp_admin_token') : null
+      const res = await fetch('/api/ads', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Admin-Token': token } : {}) }, body: JSON.stringify({ title: title.trim(), imageUrl, linkUrl: linkUrl.trim() || undefined }) })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
       toast({ title: 'Success', description: 'Ad added' })
@@ -328,13 +346,15 @@ function AdsSection() {
   }
 
   async function toggleAd(id: string, active: boolean) {
-    await fetch(`/api/ads/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active: !active }) })
+    const token = typeof window !== 'undefined' ? localStorage.getItem('bsp_admin_token') : null
+    await fetch(`/api/ads/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Admin-Token': token } : {}) }, body: JSON.stringify({ active: !active }) })
     setAds((prev) => prev.map((a) => a.id === id ? { ...a, active: !active } : a))
   }
 
   async function deleteAd(id: string) {
     if (!confirm('Delete this ad?')) return
-    await fetch(`/api/ads/${id}`, { method: 'DELETE' })
+    const token = typeof window !== 'undefined' ? localStorage.getItem('bsp_admin_token') : null
+    await fetch(`/api/ads/${id}`, { method: 'DELETE', headers: token ? { 'X-Admin-Token': token } : {} })
     setAds((prev) => prev.filter((a) => a.id !== id))
     toast({ title: 'Success', description: 'Ad deleted' })
   }
