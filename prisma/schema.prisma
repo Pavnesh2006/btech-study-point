@@ -1,0 +1,72 @@
+// Prisma schema — development (SQLite)
+// For production (PostgreSQL) see schema.prod.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Subject {
+  id        String    @id @default(cuid())
+  name      String
+  code      String?
+  branch    String
+  semester  Int
+  chapters  Chapter[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([branch, semester, name])
+}
+
+model Chapter {
+  id        String     @id @default(cuid())
+  name      String
+  subjectId String
+  subject   Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  resources Resource[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([subjectId, name])
+}
+
+model Resource {
+  id           String   @id @default(cuid())
+  title        String
+  type         String   // "video" | "note"
+  youtubeId    String?  // YouTube video ID for video type
+  noteUrl      String?  // URL for note PDF (external or data URL)
+  noteFileName String?  // original filename for notes
+  chapterId    String
+  chapter      Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@index([chapterId, type])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  branch       String
+  semester     Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([branch, semester])
+}
+
+model Ad {
+  id        String   @id @default(cuid())
+  title     String
+  imageUrl  String   // base64 data URL or external URL
+  linkUrl   String?  // optional link when user clicks the ad
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
