@@ -270,31 +270,92 @@ function AddContentForm({ chapterName, onAdd }: { chapterName: string; onAdd: (t
   const [type, setType] = useState<'video' | 'note'>('video')
   const [title, setTitle] = useState('')
   const [ytUrl, setYtUrl] = useState('')
-  const [noteUrl, setNoteUrl] = useState('')
-  const [noteFileName, setNoteFileName] = useState('')
+  const [noteFile, setNoteFile] = useState<File | null>(null)
+  const [noteDataUrl, setNoteDataUrl] = useState('')
   const [busy, setBusy] = useState(false)
+  const noteFileRef = useRef<HTMLInputElement>(null)
+
+  function onNoteFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    if (f.type !== 'application/pdf' && !f.name.toLowerCase().endsWith('.pdf')) {
+      // Show error via parent toast - but we don't have access here, so just clear
+      setNoteFile(null); setNoteDataUrl('')
+      if (noteFileRef.current) noteFileRef.current.value = ''
+      return
+    }
+    if (f.size > 5 * 1024 * 1024) {
+      setNoteFile(null); setNoteDataUrl('')
+      if (noteFileRef.current) noteFileRef.current.value = ''
+      return
+    }
+    setNoteFile(f)
+    if (!title) setTitle(f.name.replace(/\.pdf$/i, ''))
+    // Read as data URL
+    const reader = new FileReader()
+    reader.onload = () => setNoteDataUrl(reader.result as string)
+    reader.readAsDataURL(f)
+  }
+
+  function clearNoteFile() {
+    setNoteFile(null); setNoteDataUrl('')
+    if (noteFileRef.current) noteFileRef.current.value = ''
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (busy) return
     if (!title.trim()) return
     if (type === 'video' && !ytUrl.trim()) return
-    if (type === 'note' && !noteUrl.trim()) return
+    if (type === 'note' && !noteDataUrl) return
     setBusy(true)
-    try { await onAdd(type, title.trim(), ytUrl.trim(), noteUrl.trim(), noteFileName.trim()); setTitle(''); setYtUrl(''); setNoteUrl(''); setNoteFileName('') } finally { setBusy(false) }
+    try {
+      await onAdd(type, title.trim(), ytUrl.trim(), noteDataUrl, noteFile?.name || '')
+      setTitle(''); setYtUrl(''); clearNoteFile()
+    } finally { setBusy(false) }
   }
 
   return <div className="space-y-4">
     <div className="text-xs text-muted-foreground">Adding to: <span className="font-medium text-foreground">{chapterName}</span></div>
-    <Tabs value={type} onValueChange={(v) => setType(v as 'video' | 'note')}><TabsList className="grid w-full grid-cols-2"><TabsTrigger value="video"><Video className="size-4 mr-2" />YouTube Video</TabsTrigger><TabsTrigger value="note"><FileText className="size-4 mr-2" />Note (PDF)</TabsTrigger></TabsList></Tabs>
+    {/* Type toggle — buttons instead of Tabs for reliability */}
+    <div className="flex gap-1 p-1 rounded-lg bg-muted">
+      <button type="button" onClick={() => setType('video')} className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-1.5 ${type === 'video' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}><Video className="size-4" />YouTube Video</button>
+      <button type="button" onClick={() => setType('note')} className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-1.5 ${type === 'note' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}><FileText className="size-4" />Note (PDF)</button>
+    </div>
     <form onSubmit={submit} className="space-y-3">
       <div className="space-y-2"><Label htmlFor="title">Title</Label><Input id="title" placeholder={type === 'video' ? 'e.g. Lecture 1 - Introduction' : 'e.g. Unit 1 Notes'} value={title} onChange={(e) => setTitle(e.target.value)} disabled={busy} /></div>
       {type === 'video' ? (
         <div className="space-y-2"><Label htmlFor="ytUrl">YouTube URL</Label><Input id="ytUrl" placeholder="https://www.youtube.com/watch?v=VIDEO_ID" value={ytUrl} onChange={(e) => setYtUrl(e.target.value)} disabled={busy} /><p className="text-[11px] text-muted-foreground">Paste the YouTube link of your unlisted video.</p>{ytUrl && extractYouTubeId(ytUrl) && <p className="text-[11px] text-emerald-400">✓ Valid (ID: {extractYouTubeId(ytUrl)})</p>}{ytUrl && !extractYouTubeId(ytUrl) && <p className="text-[11px] text-destructive">✗ Invalid YouTube URL</p>}</div>
       ) : (
-        <><div className="space-y-2"><Label htmlFor="noteUrl">PDF URL</Label><Input id="noteUrl" placeholder="https://example.com/notes.pdf" value={noteUrl} onChange={(e) => setNoteUrl(e.target.value)} disabled={busy} /></div><div className="space-y-2"><Label htmlFor="noteFileName">Display filename (optional)</Label><Input id="noteFileName" placeholder="Unit1_Notes.pdf" value={noteFileName} onChange={(e) => setNoteFileName(e.target.value)} disabled={busy} /></div></>
+        <div className="space-y-2">
+          <Label htmlFor="noteFile">Upload PDF from your PC (max 5MB)</Label>
+          <label htmlFor="noteFile" className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer p-6 text-center ${busy ? 'pointer-events-none opacity-60' : ''}`}>
+            <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+              {noteFile ? <CheckCircle2 className="size-5" /> : <Plus className="size-5" />}
+            </div>
+            {noteFile ? (
+              <div className="text-sm">
+                <span className="font-medium text-foreground">{noteFile.name}</span>
+                <span className="text-muted-foreground"> · {(noteFile.size / 1024).toFixed(0)} KB</span>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                <span className="text-primary font-medium">Click to browse</span> your computer
+                <br />
+                <span className="text-xs">PDF files only (max 5MB)</span>
+              </div>
+            )}
+            <input id="noteFile" ref={noteFileRef} type="file" className="sr-only" accept="application/pdf,.pdf" onChange={onNoteFileChange} disabled={busy} />
+          </label>
+          {noteFile && (
+            <button type="button" onClick={clearNoteFile} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+              <X className="size-3" /> Remove file
+            </button>
+          )}
+          <p className="text-[11px] text-muted-foreground">The PDF will be stored in the database and viewable/downloadable by students.</p>
+        </div>
       )}
-      <Button type="submit" className="w-full" disabled={busy || !title.trim() || (type === 'video' ? !ytUrl.trim() : !noteUrl.trim())}>{busy ? <><Loader2 className="size-4 animate-spin" />Adding...</> : <><CheckCircle2 className="size-4" />Add {type === 'video' ? 'Video' : 'Note'}</>}</Button>
+      <Button type="submit" className="w-full" disabled={busy || !title.trim() || (type === 'video' ? !ytUrl.trim() : !noteDataUrl)}>{busy ? <><Loader2 className="size-4 animate-spin" />Adding...</> : <><CheckCircle2 className="size-4" />Add {type === 'video' ? 'Video' : 'Note'}</>}</Button>
     </form>
   </div>
 }
